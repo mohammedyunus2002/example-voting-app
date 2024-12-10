@@ -1,82 +1,81 @@
 name: Build Vote
-# template source: https://github.com/dockersamples/.github/blob/main/templates/call-docker-build.yaml
 
 on:
-  # we want pull requests so we can build(test) but not push to image registry
   push:
     branches:
       - 'main'
-    # only build when important files change
     paths:
       - 'vote/**'
       - '.github/workflows/call-docker-build-vote.yaml'
   pull_request:
     branches:
       - 'main'
-    # only build when important files change
     paths:
       - 'vote/**'
       - '.github/workflows/call-docker-build-vote.yaml'
 
 jobs:
-  call-docker-build:
-
+  build-and-push:
     name: Vote Call Docker Build
-
-    uses: dockersamples/.github/.github/workflows/reusable-docker-build.yaml@main
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
-      packages: write # needed to push docker image to ghcr.io
-      pull-requests: write # needed to create and update comments in PRs
-    
-    secrets:
+      packages: write # Needed to push docker image to ghcr.io
+      pull-requests: write # Needed to create and update comments in PRs
 
-      # Only needed if with:dockerhub-enable is true below
-      dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      # Step 1: Set up QEMU for multi-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
 
-      # Only needed if with:dockerhub-enable is true below
-      dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Step 2: Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    with:
-      
-      ### REQUIRED
-      ### ENABLE ONE OR BOTH REGISTRIES
-      ### tell docker where to push.
-      ### NOTE if Docker Hub is set to true, you must set secrets above and also add account/repo/tags below
-      dockerhub-enable: true
-      ghcr-enable: true
+      # Step 3: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      ### REQUIRED 
-      ### A list of the account/repo names for docker build. List should match what's enabled above
-      ### defaults to:
-      image-names: |
-        ghcr.io/dockersamples/example-voting-app-vote
-        dockersamples/examplevotingapp_vote
-      
-      ### REQUIRED set rules for tagging images, based on special action syntax:
-      ### https://github.com/docker/metadata-action#tags-input
-      ### defaults to:
-      tag-rules: |
-        type=raw,value=latest,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
-        type=raw,value=before,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
-        type=raw,value=after,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
-        type=ref,event=pr
-      
-      ### path to where docker should copy files into image
-      ### defaults to root of repository (.)
-      context: vote
-      
-      ### Dockerfile alternate name. Default is Dockerfile (relative to context path)
-      # file: Containerfile
+      # Step 4: Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      ### build stage to target, defaults to empty, which builds to last stage in Dockerfile
-      # target:
-      
-      ### platforms to build for, defaults to linux/amd64
-      ### other options: linux/amd64,linux/arm64,linux/arm/v7
-      platforms: linux/amd64,linux/arm64,linux/arm/v7
-      
-      ### Create a PR comment with image tags and labels
-      ### defaults to false
-      # comment-enable: false
+      # Step 5: Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Step 6: Run tests with pytest
+      - name: Run tests with pytest
+        run: |
+          pytest --maxfail=1 --disable-warnings -q
+
+      # Step 7: Run code quality check with Flake8
+      - name: Run code quality check with Flake8
+        run: |
+          pip install flake8
+          flake8 vote/
+
+      # Step 8: Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Step 9: Build and push the Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: vote
+          file: vote/Dockerfile
+          push: true
+          tags: |
+            mohammedyunus2002/vote:latest
+          platforms: linux/amd64,linux/arm64/v8

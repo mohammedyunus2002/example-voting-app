@@ -1,82 +1,75 @@
 name: Build Result
-# template source: https://github.com/dockersamples/.github/blob/main/templates/call-docker-build.yaml
 
 on:
-  # we want pull requests so we can build(test) but not push to image registry
   push:
     branches:
       - 'main'
-    # only build when important files change
     paths:
       - 'result/**'
       - '.github/workflows/call-docker-build-result.yaml'
   pull_request:
     branches:
       - 'main'
-    # only build when important files change
     paths:
       - 'result/**'
       - '.github/workflows/call-docker-build-result.yaml'
 
 jobs:
-  call-docker-build:
-
+  build-and-push:
     name: Result Call Docker Build
+    runs-on: ubuntu-latest
 
-    uses: dockersamples/.github/.github/workflows/reusable-docker-build.yaml@main
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    permissions:
-      contents: read
-      packages: write # needed to push docker image to ghcr.io
-      pull-requests: write # needed to create and update comments in PRs
-    
-    secrets:
+      # Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-      # Only needed if with:dockerhub-enable is true below
-      dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+        working-directory: result
 
-      # Only needed if with:dockerhub-enable is true below
-      dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Run unit tests
+      - name: Run unit tests
+        run: npm test
+        working-directory: result
 
-    with:
-      
-      ### REQUIRED
-      ### ENABLE ONE OR BOTH REGISTRIES
-      ### tell docker where to push.
-      ### NOTE if Docker Hub is set to true, you must set secrets above and also add account/repo/tags below
-      dockerhub-enable: true
-      ghcr-enable: true
+      # Run code quality checks (e.g., ESLint)
+      - name: Run code quality check
+        run: npm run lint
+        working-directory: result
 
-      ### REQUIRED 
-      ### A list of the account/repo names for docker build. List should match what's enabled above
-      ### defaults to:
-      image-names: |
-        ghcr.io/dockersamples/example-voting-app-result
-        dockersamples/examplevotingapp_result
-      
-      ### REQUIRED set rules for tagging images, based on special action syntax:
-      ### https://github.com/docker/metadata-action#tags-input
-      ### defaults to:
-      tag-rules: |
-        type=raw,value=latest,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
-        type=raw,value=before,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
-        type=raw,value=after,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
-        type=ref,event=pr
-      
-      ### path to where docker should copy files into image
-      ### defaults to root of repository (.)
-      context: result
-      
-      ### Dockerfile alternate name. Default is Dockerfile (relative to context path)
-      # file: Containerfile
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      ### build stage to target, defaults to empty, which builds to last stage in Dockerfile
-      # target:
-      
-      ### platforms to build for, defaults to linux/amd64
-      ### other options: linux/amd64,linux/arm64,linux/arm/v7
-      platforms: linux/amd64,linux/arm64,linux/arm/v7
-      
-      ### Create a PR comment with image tags and labels
-      ### defaults to false
-      # comment-enable: false
+      # Set up QEMU for multi-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Build and push the Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: result
+          file: result/Dockerfile
+          push: true
+          tags: |
+            mohammedyunus2002/examplevotingapp_result:latest
+            mohammedyunus2002/result:${{ github.sha }}
+          platforms: linux/amd64,linux/arm64/v8
