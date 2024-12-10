@@ -24,15 +24,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-<<<<<<< Updated upstream
-=======
-      # Set up Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
->>>>>>> Stashed changes
       # Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -58,6 +49,6 @@ jobs:
           file: result/Dockerfile
           push: true
           tags: |
-            mohammedyunus2002/examplevotingapp_result:latest
+            mohammedyunus2002/result:latest
             mohammedyunus2002/result:${{ github.sha }}
           platforms: linux/amd64,linux/arm64/v8
