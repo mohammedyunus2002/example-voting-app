@@ -3,7 +3,7 @@ replicaCount: 1
 image1:
   repository: mohammedyunus2002/result
   pullPolicy: IfNotPresent
-  tag: "12276849642"
+  tag: "12276974490"
 
 image2:
   repository: mohammedyunus2002/vote
