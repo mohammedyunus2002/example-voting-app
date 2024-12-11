@@ -8,7 +8,7 @@ image1:
 image2:
   repository: mohammedyunus2002/vote
   pullPolicy: IfNotPresent
-  tag: ""
+  tag: "12277013643"
 
 image3:
   repository: mohammedyunus2002/worker
