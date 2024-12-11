@@ -13,14 +13,14 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /vote
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: {{ .Values.ingress.services.vote }}
                 port:
                   number: {{ .Values.ingress.ports.vote }}
-          - path: /result
+          - path: /
             pathType: Prefix
             backend:
               service:
