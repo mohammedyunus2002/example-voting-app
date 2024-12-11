@@ -49,6 +49,7 @@ jobs:
           file: worker/Dockerfile
           push: true
           tags: mohammedyunus2002/worker:latest
+          mohammedyunus2002/worker:${{ github.run_id }}
           platforms: linux/arm64
 
   update-helm-chart:

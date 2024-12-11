@@ -50,7 +50,7 @@ jobs:
           push: true
           tags: |
             mohammedyunus2002/result:latest
-            mohammedyunus2002/result:${{ github.sha }}
+            mohammedyunus2002/result:${{ github.run_id }}
           platforms: linux/amd64,linux/arm64/v8
 
   update-helm-chart:
