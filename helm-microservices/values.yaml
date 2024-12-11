@@ -13,7 +13,7 @@ image2:
 image3:
   repository: mohammedyunus2002/worker
   pullPolicy: IfNotPresent
-  tag: ""
+  tag: "12277054216"
 
 service:
   type: ClusterIP
