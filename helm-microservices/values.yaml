@@ -1,0 +1,42 @@
+replicaCount: 1
+
+image1:
+  repository: mohammedyunus2002/result
+  pullPolicy: IfNotPresent
+  tag: ""
+
+image2:
+  repository: mohammedyunus2002/vote
+  pullPolicy: IfNotPresent
+  tag: ""
+
+image3:
+  repository: mohammedyunus2002/worker
+  pullPolicy: IfNotPresent
+  tag: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
