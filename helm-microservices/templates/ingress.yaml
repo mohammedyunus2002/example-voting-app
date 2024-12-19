@@ -3,10 +3,11 @@ kind: Ingress
 metadata:
   name: voting-app-ingress
   annotations:
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 spec:
-  ingressClassName: nginx
+  ingressClassName: alb
   rules:
     - host: {{ .Values.ingress.host }}
       http:
