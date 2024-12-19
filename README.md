@@ -78,8 +78,8 @@ This application was deployed using a robust CI/CD pipeline leveraging GitHub Ac
 - The GitHub repository is the single source of truth, and any changes to Kubernetes manifests trigger automatic deployments to the cluster.
 
 ### 7. **Ingress Configuration**
-- The NGINX Ingress Controller is used to route external traffic to the `vote` and `result` web applications.
-- The domain `challenge.yunus.in` was configured with DNS records pointing to the AWS Load Balancer created by the Ingress Controller.
+- The AWS ALB Ingress Controller is used to route external traffic to the `vote` and `result` web applications.
+- The domain `challenge.yunus.in` was configured with DNS records pointing to the AWS ALB (Application Load Balancer) created by the Ingress Controller.
 
 ### 8. **Monitoring and Observability**
 - Prometheus and Grafana were configured to monitor the cluster and application metrics.
