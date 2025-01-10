@@ -9,20 +9,12 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-    - host: {{ .Values.ingress.host }}
-      http:
+    - http:
         paths:
-          - path: /vote
+          - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ .Values.ingress.services.vote }}
+                name: web
                 port:
-                  number: {{ .Values.ingress.ports.vote }}
-          - path: /result
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ .Values.ingress.services.result }}
-                port:
-                  number: {{ .Values.ingress.ports.result }}
+                  number: 8080
