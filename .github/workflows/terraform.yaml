@@ -90,17 +90,12 @@ jobs:
             echo "EKS cluster is not created yet. Helm stays off until the next apply."
             exit 0
           fi
-          {
-            echo "TF_VAR_kube_host<<EOF"
-            aws eks describe-cluster --name staging-demo --query cluster.endpoint --output text
-            echo "EOF"
-            echo "TF_VAR_kube_ca<<EOF"
-            aws eks describe-cluster --name staging-demo --query cluster.certificateAuthority.data --output text
-            echo "EOF"
-            echo "TF_VAR_kube_token<<EOF"
-            aws eks get-token --cluster-name staging-demo --query status.token --output text
-            echo "EOF"
-          } >> "${GITHUB_ENV}"
+          host="$(aws eks describe-cluster --name staging-demo --query cluster.endpoint --output text | tr -d '\r\n')"
+          ca="$(aws eks describe-cluster --name staging-demo --query cluster.certificateAuthority.data --output text | tr -d '\r\n')"
+          token="$(aws eks get-token --cluster-name staging-demo --query status.token --output text | tr -d '\r\n')"
+          echo "TF_VAR_kube_host=${host}" >> "${GITHUB_ENV}"
+          echo "TF_VAR_kube_ca=${ca}" >> "${GITHUB_ENV}"
+          echo "TF_VAR_kube_token=${token}" >> "${GITHUB_ENV}"
 
       - name: Adopt existing AWS resources into state
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'destroy'
