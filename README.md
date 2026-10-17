@@ -48,42 +48,71 @@ kubectl delete -f k8s-specifications/
 
 ## Deployment Using CI/CD
 
-This application was deployed using a robust CI/CD pipeline leveraging GitHub Actions, Docker, Terraform, AWS, Kubernetes, Helm, and Argo CD. Below is an overview of the process:
+This application is deployed with GitHub Actions, Docker Hub, Terraform, AWS EKS, Helm, Argo CD, Prometheus, and Grafana.
+
+### Run the pipeline from scratch
+
+1. **GitHub secrets** (Settings → Secrets and variables → Actions):
+   - `DOCKERHUB_USERNAME` — Docker Hub user (must match image repos in `helm-microservices/values.yaml`)
+   - `DOCKERHUB_TOKEN` — Docker Hub access token
+   - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — IAM user that can create VPC, EKS, IAM, and related resources in `us-east-2`
+
+2. **Provision the cluster**  
+   In GitHub Actions, run the **Terraform** workflow with `action = apply`. That creates the VPC, EKS cluster, node group, AWS Load Balancer Controller, NGINX Ingress, cert-manager, Argo CD, and kube-prometheus-stack. First apply often takes 15–25 minutes.
+
+3. **Point DNS at the ALB**  
+   After apply, get the ALB hostname and create records:
+   - `challenge.yunus.in` → vote
+   - `result.challenge.yunus.in` → result  
+
+   ```bash
+   kubectl get ingress -n voting
+   ```
+
+4. **Continuous delivery**  
+   Push to `main` under `vote/`, `result/`, or `worker/`. The **Build, Test, and GitOps** workflow:
+   - runs tests (result)
+   - builds and pushes `vote` / `result` / `worker` images tagged with the GitHub run id
+   - commits the new tags into `helm-microservices/values.yaml`  
+   Argo CD watches that chart on `main` and syncs the `voting` namespace.
+
+5. **Tear down**  
+   Run the Terraform workflow with `action = destroy`. This incurs AWS cost while the cluster is up (node group defaults to two `t3.large` nodes).
 
 ### 1. **Version Control and GitHub Actions**
 - The source code for the application is hosted on GitHub.
-- GitHub Actions was configured to automate building and pushing Docker images for each component of the application (`vote`, `result`, and `worker`).
-- The workflow also runs unit tests to ensure code quality before deployment.
+- GitHub Actions builds and pushes Docker images for `vote`, `result`, and `worker`.
+- The result service runs unit tests before its image is published.
 
 ### 2. **Containerization with Docker**
 - Each component of the application is containerized using Docker.
-- Docker images are tagged with unique identifiers (e.g., Git commit SHA) and pushed to Docker Hub for easy access during deployment.
+- Images are tagged with the GitHub Actions run id and pushed to Docker Hub.
 
 ### 3. **Infrastructure as Code with Terraform**
-- Terraform was used to provision the AWS infrastructure, including:
-  - An EKS (Elastic Kubernetes Service) cluster for running the application.
-  - A VPC, subnets, and security groups to ensure secure networking.
-  - S3 buckets and IAM roles for storage and permissions management.
+- Terraform provisions AWS infrastructure, including:
+  - An EKS cluster for running the application
+  - A VPC, subnets, and NAT/Internet gateways
+  - IAM roles for nodes, Load Balancer Controller, and cluster autoscaler
 
 ### 4. **Kubernetes Deployment**
-- The application was deployed to the EKS cluster using Kubernetes manifests stored in the `k8s-specifications` directory.
-- Ingress was configured using an NGINX Ingress Controller to expose the application externally.
+- The app is delivered with the Helm chart in `helm-microservices/` (GitOps via Argo CD).
+- `k8s-specifications/` remains a simple local/Kubernetes alternative without the chart.
 
 ### 5. **Helm Chart for Simplified Management**
-- A custom Helm chart was created to manage the application's deployments, services, and ingress resources.
-- This Helm chart simplifies updates and scaling by providing a unified configuration for the entire application.
+- `helm-microservices` manages deployments, services, and ALB Ingress.
+- Image tags in `values.yaml` are the GitOps contract between CI and the cluster.
 
 ### 6. **Continuous Delivery with Argo CD**
-- Argo CD was set up for declarative GitOps-style continuous delivery.
-- The GitHub repository is the single source of truth, and any changes to Kubernetes manifests trigger automatic deployments to the cluster.
+- Terraform installs Argo CD and an Application that syncs `helm-microservices` from `main`.
+- Tag updates on `main` trigger an automatic sync into the `voting` namespace.
 
 ### 7. **Ingress Configuration**
-- The AWS ALB Ingress Controller is used to route external traffic to the `vote` and `result` web applications.
-- The domain `challenge.yunus.in` was configured with DNS records pointing to the AWS ALB (Application Load Balancer) created by the Ingress Controller.
+- AWS Load Balancer Controller exposes vote and result on internet-facing ALBs.
+- Configure DNS for `challenge.yunus.in` (vote) and `result.challenge.yunus.in` (result).
 
 ### 8. **Monitoring and Observability**
-- Prometheus and Grafana were configured to monitor the cluster and application metrics.
-- Dashboards provide real-time insights into application performance and resource utilization.
+- kube-prometheus-stack (Prometheus + Grafana) is installed in the `monitoring` namespace.
+- Default Grafana admin password is in `terraform/values/kube-prometheus-stack.yaml` (change this for anything beyond a lab).
 
 ## Architecture
 

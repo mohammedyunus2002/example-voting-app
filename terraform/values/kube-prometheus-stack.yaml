@@ -1,0 +1,16 @@
+grafana:
+  enabled: true
+  adminPassword: prom-operator
+  persistence:
+    enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+
+alertmanager:
+  enabled: false

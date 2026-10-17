@@ -5,7 +5,7 @@ metadata:
     app: worker
   name: worker
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: worker
@@ -15,5 +15,6 @@ spec:
         app: worker
     spec:
       containers:
-      - image: mohammedyunus2002/worker:{{ .Values.image3.tag }}
-        name: worker
+      - name: worker
+        image: "{{ .Values.image3.repository }}:{{ .Values.image3.tag }}"
+        imagePullPolicy: {{ .Values.image3.pullPolicy }}

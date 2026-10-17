@@ -5,7 +5,7 @@ metadata:
     app: result
   name: result
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: result
@@ -15,8 +15,9 @@ spec:
         app: result
     spec:
       containers:
-      - image: mohammedyunus2002/result:{{ .Values.image1.tag }}
-        name: result
+      - name: result
+        image: "{{ .Values.image1.repository }}:{{ .Values.image1.tag }}"
+        imagePullPolicy: {{ .Values.image1.pullPolicy }}
         ports:
         - containerPort: 80
           name: result

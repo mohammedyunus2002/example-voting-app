@@ -1,20 +1,33 @@
+{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: voting-app-ingress
-  annotations:  
+  annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 spec:
   ingressClassName: alb
   rules:
-    - http:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path | default "/" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.ingress.services.vote }}
+                port:
+                  number: {{ .Values.ingress.ports.vote }}
+    - host: {{ .Values.ingress.resultHost }}
+      http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: web
+                name: {{ .Values.ingress.services.result }}
                 port:
-                  number: 8080
+                  number: {{ .Values.ingress.ports.result }}
+{{- end }}

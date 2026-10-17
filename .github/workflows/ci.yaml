@@ -1,0 +1,175 @@
+name: Build, Test, and GitOps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "vote/**"
+      - "result/**"
+      - "worker/**"
+      - "helm-microservices/**"
+      - ".github/workflows/ci.yaml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "vote/**"
+      - "result/**"
+      - "worker/**"
+      - "helm-microservices/**"
+      - ".github/workflows/ci.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      vote: ${{ steps.filter.outputs.vote }}
+      result: ${{ steps.filter.outputs.result }}
+      worker: ${{ steps.filter.outputs.worker }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            vote:
+              - "vote/**"
+              - ".github/workflows/ci.yaml"
+            result:
+              - "result/**"
+              - ".github/workflows/ci.yaml"
+            worker:
+              - "worker/**"
+              - ".github/workflows/ci.yaml"
+
+  test-result:
+    name: Test result
+    needs: changes
+    if: needs.changes.outputs.result == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: result
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: result/package-lock.json
+      - run: npm ci
+      - run: npm test -- --passWithNoTests
+
+  build:
+    name: Build ${{ matrix.service }}
+    needs: [changes, test-result]
+    if: |
+      always() &&
+      (needs.test-result.result == 'success' || needs.test-result.result == 'skipped') &&
+      (
+        (matrix.service == 'vote' && needs.changes.outputs.vote == 'true') ||
+        (matrix.service == 'result' && needs.changes.outputs.result == 'true') ||
+        (matrix.service == 'worker' && needs.changes.outputs.worker == 'true')
+      )
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: vote
+            context: vote
+            file: vote/Dockerfile
+            platforms: linux/amd64,linux/arm64
+          - service: result
+            context: result
+            file: result/Dockerfile
+            platforms: linux/amd64,linux/arm64
+          - service: worker
+            context: worker
+            file: worker/Dockerfile
+            platforms: linux/amd64
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}/${{ matrix.service }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}/${{ matrix.service }}:${{ github.run_id }}
+          platforms: ${{ matrix.platforms }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  update-helm:
+    name: Update Helm image tags
+    needs: [changes, build]
+    if: |
+      always() &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: helm-values-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump tags in values.yaml
+        env:
+          RUN_ID: ${{ github.run_id }}
+          VOTE_CHANGED: ${{ needs.changes.outputs.vote }}
+          RESULT_CHANGED: ${{ needs.changes.outputs.result }}
+          WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
+        run: |
+          set -euo pipefail
+          if [ "$RESULT_CHANGED" = "true" ]; then
+            sed -i "/image1:/,/tag:/ s/tag: \".*\"/tag: \"${RUN_ID}\"/" helm-microservices/values.yaml
+          fi
+          if [ "$VOTE_CHANGED" = "true" ]; then
+            sed -i "/image2:/,/tag:/ s/tag: \".*\"/tag: \"${RUN_ID}\"/" helm-microservices/values.yaml
+          fi
+          if [ "$WORKER_CHANGED" = "true" ]; then
+            sed -i "/image3:/,/tag:/ s/tag: \".*\"/tag: \"${RUN_ID}\"/" helm-microservices/values.yaml
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add helm-microservices/values.yaml
+          if git diff --cached --quiet; then
+            echo "No Helm tag changes"
+            exit 0
+          fi
+          git commit -m "ci: bump Helm image tags to ${{ github.run_id }} [skip ci]"
+          git pull --rebase origin main
+          git push

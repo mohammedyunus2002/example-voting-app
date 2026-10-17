@@ -7,8 +7,16 @@ terraform {
 
   required_providers {
     aws = {
-        source = "hashicorp/aws"
-        version = "~> 5.49"
+      source  = "hashicorp/aws"
+      version = "~> 5.49"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.14"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.31"
     }
   }
 }

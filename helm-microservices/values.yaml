@@ -22,13 +22,14 @@ service:
 ingress:
   enabled: true
   host: challenge.yunus.in
+  resultHost: result.challenge.yunus.in
   path: /
   services:
-    vote: vote     
-    result: result 
+    vote: vote
+    result: result
   ports:
-    vote: 8080     
-    result: 8081   
+    vote: 8080
+    result: 8081
 
 
 

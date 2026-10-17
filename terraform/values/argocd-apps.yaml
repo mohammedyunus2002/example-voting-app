@@ -1,0 +1,19 @@
+applications:
+  voting-app:
+    namespace: argocd
+    finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    project: default
+    source:
+      repoURL: https://github.com/mohammedyunus2002/example-voting-app.git
+      targetRevision: main
+      path: helm-microservices
+    destination:
+      server: https://kubernetes.default.svc
+      namespace: voting
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true
