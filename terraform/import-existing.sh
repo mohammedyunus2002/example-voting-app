@@ -68,12 +68,21 @@ import_id aws_eip.nat "$(aws ec2 describe-nat-gateways --filter Name=vpc-id,Valu
 import_id aws_route_table.private "$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-private --query 'RouteTables[0].RouteTableId' --output text)"
 import_id aws_route_table.public "$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-public --query 'RouteTables[0].RouteTableId' --output text)"
 
-private_rt="$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-private --query 'RouteTables[0].RouteTableId' --output text)"
-public_rt="$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-public --query 'RouteTables[0].RouteTableId' --output text)"
-import_id aws_route_table_association.private_zone1 "$(subnet_by_name staging-private-us-east-2a)/${private_rt}"
-import_id aws_route_table_association.private_zone2 "$(subnet_by_name staging-private-us-east-2b)/${private_rt}"
-import_id aws_route_table_association.public_zone1 "$(subnet_by_name staging-public-us-east-2a)/${public_rt}"
-import_id aws_route_table_association.public_zone2 "$(subnet_by_name staging-public-us-east-2b)/${public_rt}"
+import_association() {
+  local addr="$1"
+  local subnet="$2"
+  local rtb
+  rtb="$(aws ec2 describe-route-tables --filters Name=association.subnet-id,Values="${subnet}" --query 'RouteTables[0].RouteTableId' --output text)"
+  if [[ -z "${rtb}" || "${rtb}" == "None" ]]; then
+    rtb="$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=association.main,Values=true --query 'RouteTables[0].RouteTableId' --output text)"
+  fi
+  import_id "${addr}" "${subnet}/${rtb}"
+}
+
+import_association aws_route_table_association.private_zone1 "$(subnet_by_name staging-private-us-east-2a)"
+import_association aws_route_table_association.private_zone2 "$(subnet_by_name staging-private-us-east-2b)"
+import_association aws_route_table_association.public_zone1 "$(subnet_by_name staging-public-us-east-2a)"
+import_association aws_route_table_association.public_zone2 "$(subnet_by_name staging-public-us-east-2b)"
 
 import_id aws_iam_role.eks staging-demo-eks-cluster
 import_id aws_iam_role.nodes staging-demo-eks-nodes
