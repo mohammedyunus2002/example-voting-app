@@ -51,15 +51,41 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: 1.9.8
+          terraform_version: 1.11.4
           terraform_wrapper: false
 
       - name: Terraform fmt
         run: terraform fmt -check -recursive
         continue-on-error: true
 
+      - name: Prepare remote state bucket
+        run: |
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          bucket="example-voting-app-tfstate-${account}"
+          if ! aws s3api head-bucket --bucket "${bucket}" 2>/dev/null; then
+            aws s3api create-bucket \
+              --bucket "${bucket}" \
+              --region "${AWS_REGION}" \
+              --create-bucket-configuration LocationConstraint="${AWS_REGION}"
+          fi
+          aws s3api put-bucket-versioning \
+            --bucket "${bucket}" \
+            --versioning-configuration Status=Enabled
+          aws s3api put-bucket-encryption \
+            --bucket "${bucket}" \
+            --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+          aws s3api put-public-access-block \
+            --bucket "${bucket}" \
+            --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+          echo "TF_STATE_BUCKET=${bucket}" >> "${GITHUB_ENV}"
+
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -input=false -backend-config="bucket=${TF_STATE_BUCKET}"
+
+      - name: Import resources left by the failed apply
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: bash import-existing.sh
 
       - name: Terraform Validate
         run: terraform validate
