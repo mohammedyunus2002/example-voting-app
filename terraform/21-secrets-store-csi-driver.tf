@@ -8,11 +8,22 @@ resource "helm_release" "secrets_csi_driver" {
   version    = "1.4.3"
   timeout    = 1200
 
-  # MUST be set if you use ENV variables
   set = [
     {
       name  = "syncSecret.enabled"
       value = "true"
+    },
+    {
+      name  = "linux.crds.enabled"
+      value = "false"
+    },
+    {
+      name  = "linux.resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "linux.resources.requests.memory"
+      value = "64Mi"
     }
   ]
 
@@ -26,7 +37,8 @@ resource "helm_release" "secrets_csi_driver_aws_provider" {
   repository = "https://aws.github.io/secrets-store-csi-driver-provider-aws"
   chart      = "secrets-store-csi-driver-provider-aws"
   namespace  = "kube-system"
-  version    = "0.3.8"
+  version = "0.3.8"
+  timeout = 600
 
   depends_on = [helm_release.secrets_csi_driver]
 }

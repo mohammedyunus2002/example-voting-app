@@ -61,19 +61,31 @@ resource "helm_release" "efs_csi_driver" {
 
   set = [
     {
+      name  = "controller.replicaCount"
+      value = "1"
+    },
+    {
       name  = "controller.serviceAccount.name"
       value = "efs-csi-controller-sa"
     },
     {
       name  = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
       value = aws_iam_role.efs_csi_driver.arn
+    },
+    {
+      name  = "controller.resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "controller.resources.requests.memory"
+      value = "64Mi"
     }
   ]
 
   timeout = 1200
 
   depends_on = [
-    aws_eks_node_group.general,
+    helm_release.cluster_autoscaler,
     aws_efs_mount_target.zone_a,
     aws_efs_mount_target.zone_b
   ]

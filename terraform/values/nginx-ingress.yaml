@@ -1,5 +1,10 @@
 ---
 controller:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
   ingressClassResource:
     name: external-nginx
   service:

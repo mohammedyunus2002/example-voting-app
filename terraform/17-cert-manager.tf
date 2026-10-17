@@ -8,10 +8,32 @@ resource "helm_release" "cert_manager" {
   create_namespace = true
   version          = "v1.14.5"
 
+  timeout = 1200
+
   set = [
     {
       name  = "installCRDs"
       value = "true"
+    },
+    {
+      name  = "replicaCount"
+      value = "1"
+    },
+    {
+      name  = "webhook.replicaCount"
+      value = "1"
+    },
+    {
+      name  = "cainjector.replicaCount"
+      value = "1"
+    },
+    {
+      name  = "resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "resources.requests.memory"
+      value = "64Mi"
     }
   ]
 

@@ -11,7 +11,7 @@ resource "helm_release" "argocd" {
 
   values = [file("${path.module}/values/argocd.yaml")]
 
-  depends_on = [helm_release.aws_lbc]
+  depends_on = [helm_release.cert_manager]
 }
 
 resource "helm_release" "argocd_apps" {
@@ -21,7 +21,8 @@ resource "helm_release" "argocd_apps" {
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argocd-apps"
   namespace  = "argocd"
-  version    = "2.0.2"
+  version = "2.0.2"
+  timeout = 600
 
   values = [file("${path.module}/values/argocd-apps.yaml")]
 

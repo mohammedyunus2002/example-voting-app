@@ -11,5 +11,5 @@ resource "helm_release" "kube_prometheus_stack" {
 
   values = [file("${path.module}/values/kube-prometheus-stack.yaml")]
 
-  depends_on = [helm_release.argocd]
+  depends_on = [helm_release.argocd_apps]
 }

@@ -7,7 +7,11 @@ resource "helm_release" "metrics_server" {
   namespace  = "kube-system"
   version    = "3.12.1"
 
-  values = [file("${path.module}/values/metrics-server.yaml")]
+  timeout = 600
+  values  = [file("${path.module}/values/metrics-server.yaml")]
 
-  depends_on = [aws_eks_node_group.general]
+  depends_on = [
+    aws_eks_node_group.general,
+    aws_eks_addon.pod_identity
+  ]
 }

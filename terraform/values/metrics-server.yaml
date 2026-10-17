@@ -1,4 +1,9 @@
 ---
+replicas: 1
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
 defaultArgs:
   - --cert-dir=/tmp
   - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname

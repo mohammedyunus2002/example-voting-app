@@ -73,7 +73,13 @@ resource "helm_release" "cluster_autoscaler" {
   namespace  = "kube-system"
   version    = "9.37.0"
 
+  timeout = 600
+
   set = [
+    {
+      name  = "replicaCount"
+      value = "1"
+    },
     {
       name  = "rbac.serviceAccount.name"
       value = "cluster-autoscaler"
@@ -84,7 +90,15 @@ resource "helm_release" "cluster_autoscaler" {
     },
     {
       name  = "awsRegion"
-      value = "us-east-2"
+      value = local.region
+    },
+    {
+      name  = "resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "resources.requests.memory"
+      value = "64Mi"
     }
   ]
 

@@ -7,10 +7,27 @@ applicationSet:
 
 controller:
   replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
 repoServer:
   replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
 server:
   replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
   extraArgs:
     - --insecure
   service:

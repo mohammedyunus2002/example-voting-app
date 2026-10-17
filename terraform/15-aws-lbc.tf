@@ -52,10 +52,33 @@ resource "helm_release" "aws_lbc" {
       value = aws_eks_cluster.eks.name
     },
     {
+      name  = "region"
+      value = local.region
+    },
+    {
+      name  = "vpcId"
+      value = aws_vpc.main.id
+    },
+    {
+      name  = "replicaCount"
+      value = "1"
+    },
+    {
       name  = "serviceAccount.name"
       value = "aws-load-balancer-controller"
+    },
+    {
+      name  = "resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "resources.requests.memory"
+      value = "64Mi"
     }
   ]
 
-  depends_on = [helm_release.cluster_autoscaler]
+  depends_on = [
+    helm_release.secrets_csi_driver_aws_provider,
+    aws_eks_addon.pod_identity
+  ]
 }
