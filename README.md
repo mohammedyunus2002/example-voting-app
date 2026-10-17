@@ -306,8 +306,8 @@ Infrastructure provisioning creates billable AWS resources. Review potential cos
 
 | Service | Hostname |
 |---|---|
-| Vote | `challenge.hvents.in` |
-| Result | `result.challenge.hvents.in` |
+| Vote | `challenge.yunusc.in` |
+| Result | `result.challenge.yunusc.in` |
 
 Configure DNS records to point to the provisioned ingress endpoint.
 

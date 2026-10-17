@@ -21,8 +21,8 @@ service:
 
 ingress:
   enabled: true
-  host: challenge.hvents.in
-  resultHost: result.challenge.hvents.in
+  host: challenge.yunusc.in
+  resultHost: result.challenge.yunusc.in
   path: /
   services:
     vote: vote
