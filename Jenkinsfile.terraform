@@ -1,0 +1,133 @@
+// Same Terraform plan / apply / destroy flow as .github/workflows/terraform.yaml.
+// Jenkins credentials: aws-access-key-id, aws-secret-access-key.
+// The controller needs Terraform 1.11.4, AWS CLI, and bash.
+
+pipeline {
+  agent any
+  parameters {
+    choice(name: 'ACTION', choices: ['plan', 'apply', 'destroy'], description: 'What Terraform should do')
+  }
+  options {
+    disableConcurrentBuilds()
+    timestamps()
+  }
+  environment {
+    AWS_REGION            = 'us-east-2'
+    AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
+    AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+    AWS_DEFAULT_REGION    = 'us-east-2'
+  }
+  stages {
+    stage('State bucket') {
+      steps {
+        sh '''
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          bucket="example-voting-app-tfstate-${account}"
+          if ! aws s3api head-bucket --bucket "${bucket}" 2>/dev/null; then
+            aws s3api create-bucket --bucket "${bucket}" --region "${AWS_REGION}" \
+              --create-bucket-configuration LocationConstraint="${AWS_REGION}"
+          fi
+          aws s3api put-bucket-versioning --bucket "${bucket}" --versioning-configuration Status=Enabled
+          echo "TF_STATE_BUCKET=${bucket}" > tf.env
+        '''
+      }
+    }
+    stage('Init') {
+      steps {
+        dir('terraform') {
+          sh '''
+            set -a
+            . ../tf.env
+            set +a
+            terraform init -input=false -backend-config="bucket=${TF_STATE_BUCKET}"
+          '''
+        }
+      }
+    }
+    stage('Cluster credentials') {
+      when { expression { params.ACTION != 'destroy' } }
+      steps {
+        sh '''
+          set -euo pipefail
+          if ! aws eks describe-cluster --name staging-demo >/dev/null 2>&1; then
+            echo "EKS cluster is not created yet."
+            exit 0
+          fi
+          echo "TF_VAR_kube_host=$(aws eks describe-cluster --name staging-demo --query cluster.endpoint --output text)" >> tf.env
+          echo "TF_VAR_kube_ca=$(aws eks describe-cluster --name staging-demo --query cluster.certificateAuthority.data --output text)" >> tf.env
+          echo "TF_VAR_kube_token=$(aws eks get-token --cluster-name staging-demo --query status.token --output text)" >> tf.env
+        '''
+      }
+    }
+    stage('Adopt existing resources') {
+      when { expression { params.ACTION != 'destroy' } }
+      steps {
+        dir('terraform') {
+          sh '''
+            set -a
+            . ../tf.env
+            set +a
+            bash import-existing.sh
+          '''
+        }
+      }
+    }
+    stage('Validate') {
+      steps {
+        dir('terraform') {
+          sh 'terraform validate'
+        }
+      }
+    }
+    stage('Plan') {
+      when { expression { params.ACTION == 'plan' } }
+      steps {
+        dir('terraform') {
+          sh '''
+            set -a
+            . ../tf.env
+            set +a
+            terraform plan -input=false -out=tfplan
+          '''
+        }
+      }
+    }
+    stage('Apply') {
+      when { expression { params.ACTION == 'apply' } }
+      steps {
+        dir('terraform') {
+          sh '''
+            set -euo pipefail
+            set -a
+            . ../tf.env
+            set +a
+            terraform apply -input=false -auto-approve
+            if [ -z "${TF_VAR_kube_host:-}" ] && aws eks describe-cluster --name staging-demo >/dev/null 2>&1; then
+              export TF_VAR_kube_host="$(aws eks describe-cluster --name staging-demo --query cluster.endpoint --output text)"
+              export TF_VAR_kube_ca="$(aws eks describe-cluster --name staging-demo --query cluster.certificateAuthority.data --output text)"
+              export TF_VAR_kube_token="$(aws eks get-token --cluster-name staging-demo --query status.token --output text)"
+              terraform apply -input=false -auto-approve
+            fi
+          '''
+        }
+      }
+    }
+    stage('Destroy') {
+      when { expression { params.ACTION == 'destroy' } }
+      steps {
+        dir('terraform') {
+          sh '''
+            set -a
+            . ../tf.env
+            set +a
+            bash cleanup-vpc.sh || true
+            terraform destroy -input=false -auto-approve || true
+            bash cleanup-vpc.sh
+            terraform destroy -input=false -auto-approve
+          '''
+        }
+      }
+    }
+  }
+}
