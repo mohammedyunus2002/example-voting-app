@@ -98,6 +98,9 @@ jobs:
           echo "TF_VAR_kube_ca=${ca}" >> "${GITHUB_ENV}"
           echo "TF_VAR_kube_token=${token}" >> "${GITHUB_ENV}"
 
+      - name: Drop Kubernetes state when the cluster API is gone
+        run: bash drop-kubernetes-state.sh
+
       - name: Adopt existing AWS resources into state
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'destroy'
         run: bash import-existing.sh
@@ -127,12 +130,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
         run: |
           set -euo pipefail
-          if ! aws eks describe-cluster --name staging-demo >/dev/null 2>&1; then
-            echo "EKS API is already gone. Removing Kubernetes and Helm resources from state."
-            terraform state list | grep -E '^(kubernetes_|helm_release\.)' | while read -r addr; do
-              terraform state rm "${addr}"
-            done || true
-          fi
           terraform destroy -input=false -auto-approve || true
           bash cleanup-vpc.sh || true
           terraform destroy -input=false -auto-approve || true
