@@ -83,8 +83,8 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false -backend-config="bucket=${TF_STATE_BUCKET}"
 
-      - name: Import resources left by the failed apply
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Adopt existing AWS resources into state
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'destroy'
         run: bash import-existing.sh
 
       - name: Terraform Validate

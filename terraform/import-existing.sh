@@ -5,7 +5,7 @@ set -u
 import_id() {
   local addr="$1"
   local id="$2"
-  if [[ -z "${id}" || "${id}" == "None" || "${id}" == "null" ]]; then
+  if [[ -z "${id}" || "${id}" == "None" || "${id}" == "null" || "${id}" == *"None"* || "${id}" == *"null"* ]]; then
     echo "skip ${addr}: not found in AWS"
     return 0
   fi
