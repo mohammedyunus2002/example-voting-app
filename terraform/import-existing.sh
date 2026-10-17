@@ -133,29 +133,46 @@ if [[ -n "${TF_VAR_kube_host:-}" ]]; then
     mv /tmp/linux-amd64/helm "${HOME}/bin/helm"
     export PATH="${HOME}/bin:${PATH}"
   fi
+  if ! command -v kubectl >/dev/null 2>&1; then
+    mkdir -p "${HOME}/bin"
+    curl -fsSL -o "${HOME}/bin/kubectl" "https://dl.k8s.io/release/v1.31.4/bin/linux/amd64/kubectl"
+    chmod +x "${HOME}/bin/kubectl"
+  fi
   aws eks update-kubeconfig --name staging-demo --region us-east-2 >/dev/null
+
+  helm_status() {
+    helm status "$1" -n "$2" -o json 2>/dev/null | python3 -c 'import json,sys
+raw=sys.stdin.read()
+if not raw.strip():
+    sys.exit(0)
+print(json.loads(raw).get("info",{}).get("status",""))' || true
+  }
 
   adopt_helm() {
     local addr="$1"
     local namespace="$2"
     local name="$3"
     local status
+    status="$(helm_status "${name}" "${namespace}")"
+    case "${status}" in
+      pending-install|pending-upgrade|pending-rollback|uninstalling)
+        echo "clear stuck ${namespace}/${name} (${status})"
+        kubectl -n "${namespace}" delete secret \
+          -l "owner=helm,name=${name},status in (pending-install,pending-upgrade,pending-rollback,uninstalling)" \
+          || true
+        status="$(helm_status "${name}" "${namespace}")"
+        if [[ -z "${status}" ]]; then
+          terraform state rm "${addr}" >/dev/null 2>&1 || true
+        fi
+        ;;
+    esac
     if terraform state show "${addr}" >/dev/null 2>&1; then
       echo "skip ${addr}: already in state"
       return 0
     fi
-    status="$(helm status "${name}" -n "${namespace}" -o json 2>/dev/null | python3 -c 'import json,sys
-raw=sys.stdin.read()
-if not raw.strip():
-    sys.exit(0)
-print(json.loads(raw).get("info",{}).get("status",""))' || true)"
     case "${status}" in
       deployed|failed|superseded)
         import_id "${addr}" "${namespace}/${name}"
-        ;;
-      pending-install|pending-upgrade|pending-rollback|uninstalling)
-        echo "uninstall stuck ${namespace}/${name} (${status})"
-        helm uninstall "${name}" -n "${namespace}" --no-hooks || true
         ;;
       *)
         echo "skip ${addr}: no Helm release"
