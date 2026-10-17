@@ -1,8 +1,9 @@
 locals {
-  env         = "staging"
-  region      = "us-east-2"
-  zone1       = "us-east-2a"
-  zone2       = "us-east-2b"
-  eks_name    = "demo"
-  eks_version = "1.35"
+  env              = "staging"
+  region           = "us-east-2"
+  zone1            = "us-east-2a"
+  zone2            = "us-east-2b"
+  eks_name         = "demo"
+  eks_version      = "1.35"
+  kubernetes_ready = var.kube_host != ""
 }

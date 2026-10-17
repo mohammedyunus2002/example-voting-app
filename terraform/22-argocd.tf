@@ -1,5 +1,6 @@
 resource "helm_release" "argocd" {
-  name = "argocd"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "argocd"
 
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
@@ -14,7 +15,8 @@ resource "helm_release" "argocd" {
 }
 
 resource "helm_release" "argocd_apps" {
-  name = "argocd-apps"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "argocd-apps"
 
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argocd-apps"

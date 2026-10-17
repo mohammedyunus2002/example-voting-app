@@ -37,7 +37,8 @@ resource "aws_eks_pod_identity_association" "aws_lbc" {
 }
 
 resource "helm_release" "aws_lbc" {
-  name = "aws-load-balancer-controller"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "aws-load-balancer-controller"
 
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"

@@ -1,5 +1,6 @@
 resource "helm_release" "secrets_csi_driver" {
-  name = "secrets-store-csi-driver"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "secrets-store-csi-driver"
 
   repository = "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
   chart      = "secrets-store-csi-driver"
@@ -18,7 +19,8 @@ resource "helm_release" "secrets_csi_driver" {
 }
 
 resource "helm_release" "secrets_csi_driver_aws_provider" {
-  name = "secrets-store-csi-driver-provider-aws"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "secrets-store-csi-driver-provider-aws"
 
   repository = "https://aws.github.io/secrets-store-csi-driver-provider-aws"
   chart      = "secrets-store-csi-driver-provider-aws"

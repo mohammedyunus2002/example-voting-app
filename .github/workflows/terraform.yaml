@@ -83,6 +83,25 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false -backend-config="bucket=${TF_STATE_BUCKET}"
 
+      - name: Load cluster credentials when the cluster already exists
+        run: |
+          set -euo pipefail
+          if ! aws eks describe-cluster --name staging-demo >/dev/null 2>&1; then
+            echo "EKS cluster is not created yet. Helm stays off until the next apply."
+            exit 0
+          fi
+          {
+            echo "TF_VAR_kube_host<<EOF"
+            aws eks describe-cluster --name staging-demo --query cluster.endpoint --output text
+            echo "EOF"
+            echo "TF_VAR_kube_ca<<EOF"
+            aws eks describe-cluster --name staging-demo --query cluster.certificateAuthority.data --output text
+            echo "EOF"
+            echo "TF_VAR_kube_token<<EOF"
+            aws eks get-token --cluster-name staging-demo --query status.token --output text
+            echo "EOF"
+          } >> "${GITHUB_ENV}"
+
       - name: Adopt existing AWS resources into state
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'destroy'
         run: bash import-existing.sh
@@ -98,7 +117,15 @@ jobs:
 
       - name: Terraform Apply
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
-        run: terraform apply -input=false -auto-approve
+        run: |
+          set -euo pipefail
+          terraform apply -input=false -auto-approve
+          if [[ -z "${TF_VAR_kube_host:-}" ]] && aws eks describe-cluster --name staging-demo >/dev/null 2>&1; then
+            export TF_VAR_kube_host="$(aws eks describe-cluster --name staging-demo --query cluster.endpoint --output text)"
+            export TF_VAR_kube_ca="$(aws eks describe-cluster --name staging-demo --query cluster.certificateAuthority.data --output text)"
+            export TF_VAR_kube_token="$(aws eks get-token --cluster-name staging-demo --query status.token --output text)"
+            terraform apply -input=false -auto-approve
+          fi
 
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'

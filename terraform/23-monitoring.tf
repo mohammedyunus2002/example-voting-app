@@ -1,5 +1,6 @@
 resource "helm_release" "kube_prometheus_stack" {
-  name = "kube-prometheus-stack"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "kube-prometheus-stack"
 
   repository       = "https://prometheus-community.github.io/helm-charts"
   chart            = "kube-prometheus-stack"

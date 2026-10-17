@@ -65,7 +65,8 @@ resource "aws_eks_pod_identity_association" "cluster_autoscaler" {
 }
 
 resource "helm_release" "cluster_autoscaler" {
-  name = "autoscaler"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "autoscaler"
 
   repository = "https://kubernetes.github.io/autoscaler"
   chart      = "cluster-autoscaler"

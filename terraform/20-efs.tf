@@ -51,7 +51,8 @@ resource "aws_iam_role_policy_attachment" "efs_csi_driver" {
 }
 
 resource "helm_release" "efs_csi_driver" {
-  name = "aws-efs-csi-driver"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "aws-efs-csi-driver"
 
   repository = "https://kubernetes-sigs.github.io/aws-efs-csi-driver/"
   chart      = "aws-efs-csi-driver"
@@ -75,23 +76,9 @@ resource "helm_release" "efs_csi_driver" {
   ]
 }
 
-# Optional since we already init helm provider (just to make it self contained)
-data "aws_eks_cluster" "eks_v2" {
-  name = aws_eks_cluster.eks.name
-}
-
-# Optional since we already init helm provider (just to make it self contained)
-data "aws_eks_cluster_auth" "eks_v2" {
-  name = aws_eks_cluster.eks.name
-}
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.eks_v2.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks_v2.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.eks_v2.token
-}
-
 resource "kubernetes_storage_class_v1" "efs" {
+  count = local.kubernetes_ready ? 1 : 0
+
   metadata {
     name = "efs"
   }

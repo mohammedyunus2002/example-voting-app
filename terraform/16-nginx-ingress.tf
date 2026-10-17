@@ -1,5 +1,6 @@
 resource "helm_release" "external_nginx" {
-  name = "external"
+  count = local.kubernetes_ready ? 1 : 0
+  name  = "external"
 
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
