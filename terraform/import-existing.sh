@@ -21,27 +21,55 @@ account="$(aws sts get-caller-identity --query Account --output text)"
 policy_arn() {
   echo "arn:aws:iam::${account}:policy/$1"
 }
-by_name() {
-  aws ec2 describe-vpcs --filters "Name=tag:Name,Values=$1" --query 'Vpcs[0].VpcId' --output text
-}
 subnet_by_name() {
-  aws ec2 describe-subnets --filters "Name=tag:Name,Values=$1" --query 'Subnets[0].SubnetId' --output text
+  aws ec2 describe-subnets \
+    --filters "Name=tag:Name,Values=$1" "Name=vpc-id,Values=${vpc_id}" \
+    --query 'Subnets[0].SubnetId' --output text
 }
 
-vpc_id="$(by_name staging-main)"
+# The subnets already exist. Use their VPC, not whichever VPC happens to be named staging-main.
+vpc_id="$(aws ec2 describe-subnets --filters Name=tag:Name,Values=staging-private-us-east-2a --query 'Subnets[0].VpcId' --output text)"
+if [[ -z "${vpc_id}" || "${vpc_id}" == "None" ]]; then
+  vpc_id="$(aws ec2 describe-vpcs --filters Name=tag:Name,Values=staging-main --query 'Vpcs[0].VpcId' --output text)"
+fi
+
+state_vpc="$(terraform state show aws_vpc.main 2>/dev/null | sed -n 's/^ *id *= *"\(vpc-[^"]*\)".*/\1/p' | head -1)"
+if [[ -n "${state_vpc}" && "${state_vpc}" != "${vpc_id}" ]]; then
+  echo "state has ${state_vpc}; existing subnets are in ${vpc_id}. Rebinding network resources."
+  for addr in \
+    aws_route_table_association.private_zone1 \
+    aws_route_table_association.private_zone2 \
+    aws_route_table_association.public_zone1 \
+    aws_route_table_association.public_zone2 \
+    aws_route_table.private \
+    aws_route_table.public \
+    aws_nat_gateway.nat \
+    aws_eip.nat \
+    aws_internet_gateway.igw \
+    aws_subnet.private_zone1 \
+    aws_subnet.private_zone2 \
+    aws_subnet.public_zone1 \
+    aws_subnet.public_zone2 \
+    aws_vpc.main
+  do
+    terraform state rm "${addr}" >/dev/null 2>&1 || true
+  done
+fi
+
 import_id aws_vpc.main "${vpc_id}"
 import_id aws_subnet.private_zone1 "$(subnet_by_name staging-private-us-east-2a)"
 import_id aws_subnet.private_zone2 "$(subnet_by_name staging-private-us-east-2b)"
 import_id aws_subnet.public_zone1 "$(subnet_by_name staging-public-us-east-2a)"
 import_id aws_subnet.public_zone2 "$(subnet_by_name staging-public-us-east-2b)"
-import_id aws_internet_gateway.igw "$(aws ec2 describe-internet-gateways --filters Name=tag:Name,Values=staging-igw --query 'InternetGateways[0].InternetGatewayId' --output text)"
-import_id aws_eip.nat "$(aws ec2 describe-addresses --filters Name=tag:Name,Values=staging-nat --query 'Addresses[0].AllocationId' --output text)"
-import_id aws_nat_gateway.nat "$(aws ec2 describe-nat-gateways --filter Name=tag:Name,Values=staging-nat Name=state,Values=available,pending --query 'NatGateways[0].NatGatewayId' --output text)"
-import_id aws_route_table.private "$(aws ec2 describe-route-tables --filters Name=tag:Name,Values=staging-private --query 'RouteTables[0].RouteTableId' --output text)"
-import_id aws_route_table.public "$(aws ec2 describe-route-tables --filters Name=tag:Name,Values=staging-public --query 'RouteTables[0].RouteTableId' --output text)"
+import_id aws_internet_gateway.igw "$(aws ec2 describe-internet-gateways --filters Name=attachment.vpc-id,Values="${vpc_id}" --query 'InternetGateways[0].InternetGatewayId' --output text)"
+nat_id="$(aws ec2 describe-nat-gateways --filter Name=vpc-id,Values="${vpc_id}" Name=state,Values=available,pending --query 'NatGateways[0].NatGatewayId' --output text)"
+import_id aws_nat_gateway.nat "${nat_id}"
+import_id aws_eip.nat "$(aws ec2 describe-nat-gateways --filter Name=vpc-id,Values="${vpc_id}" Name=state,Values=available,pending --query 'NatGateways[0].NatGatewayAddresses[0].AllocationId' --output text)"
+import_id aws_route_table.private "$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-private --query 'RouteTables[0].RouteTableId' --output text)"
+import_id aws_route_table.public "$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-public --query 'RouteTables[0].RouteTableId' --output text)"
 
-private_rt="$(aws ec2 describe-route-tables --filters Name=tag:Name,Values=staging-private --query 'RouteTables[0].RouteTableId' --output text)"
-public_rt="$(aws ec2 describe-route-tables --filters Name=tag:Name,Values=staging-public --query 'RouteTables[0].RouteTableId' --output text)"
+private_rt="$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-private --query 'RouteTables[0].RouteTableId' --output text)"
+public_rt="$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="${vpc_id}" Name=tag:Name,Values=staging-public --query 'RouteTables[0].RouteTableId' --output text)"
 import_id aws_route_table_association.private_zone1 "$(subnet_by_name staging-private-us-east-2a)/${private_rt}"
 import_id aws_route_table_association.private_zone2 "$(subnet_by_name staging-private-us-east-2b)/${private_rt}"
 import_id aws_route_table_association.public_zone1 "$(subnet_by_name staging-public-us-east-2a)/${public_rt}"
