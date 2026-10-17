@@ -7,10 +7,12 @@ resource "helm_release" "secrets_csi_driver" {
   version    = "1.4.3"
 
   # MUST be set if you use ENV variables
-  set {
-    name  = "syncSecret.enabled"
-    value = true
-  }
+  set = [
+    {
+      name  = "syncSecret.enabled"
+      value = "true"
+    }
+  ]
 
   depends_on = [helm_release.efs_csi_driver]
 }
