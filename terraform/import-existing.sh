@@ -122,3 +122,57 @@ import_id aws_efs_file_system.eks "$(aws efs describe-file-systems --creation-to
 if aws eks describe-cluster --name staging-demo >/dev/null 2>&1; then
   import_id aws_eks_cluster.eks staging-demo
 fi
+
+# A timed-out Helm install leaves the release name in the cluster. Import a
+# finished release into state. Drop one that is stuck mid-install so apply can
+# create it again.
+if [[ -n "${TF_VAR_kube_host:-}" ]]; then
+  if ! command -v helm >/dev/null 2>&1; then
+    curl -fsSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz | tar -xz -C /tmp
+    mkdir -p "${HOME}/bin"
+    mv /tmp/linux-amd64/helm "${HOME}/bin/helm"
+    export PATH="${HOME}/bin:${PATH}"
+  fi
+  aws eks update-kubeconfig --name staging-demo --region us-east-2 >/dev/null
+
+  adopt_helm() {
+    local addr="$1"
+    local namespace="$2"
+    local name="$3"
+    local status
+    if terraform state show "${addr}" >/dev/null 2>&1; then
+      echo "skip ${addr}: already in state"
+      return 0
+    fi
+    status="$(helm status "${name}" -n "${namespace}" -o json 2>/dev/null | python3 -c 'import json,sys
+raw=sys.stdin.read()
+if not raw.strip():
+    sys.exit(0)
+print(json.loads(raw).get("info",{}).get("status",""))' || true)"
+    case "${status}" in
+      deployed|failed|superseded)
+        import_id "${addr}" "${namespace}/${name}"
+        ;;
+      pending-install|pending-upgrade|pending-rollback|uninstalling)
+        echo "uninstall stuck ${namespace}/${name} (${status})"
+        helm uninstall "${name}" -n "${namespace}" --no-hooks || true
+        ;;
+      *)
+        echo "skip ${addr}: no Helm release"
+        ;;
+    esac
+  }
+
+  adopt_helm 'helm_release.metrics_server[0]' kube-system metrics-server
+  adopt_helm 'helm_release.cluster_autoscaler[0]' kube-system autoscaler
+  adopt_helm 'helm_release.aws_lbc[0]' kube-system aws-load-balancer-controller
+  adopt_helm 'helm_release.external_nginx[0]' ingress external
+  adopt_helm 'helm_release.cert_manager[0]' cert-manager cert-manager
+  adopt_helm 'helm_release.efs_csi_driver[0]' kube-system aws-efs-csi-driver
+  adopt_helm 'helm_release.secrets_csi_driver[0]' kube-system secrets-store-csi-driver
+  adopt_helm 'helm_release.secrets_csi_driver_aws_provider[0]' kube-system secrets-store-csi-driver-provider-aws
+  adopt_helm 'helm_release.argocd[0]' argocd argocd
+  adopt_helm 'helm_release.argocd_apps[0]' argocd argocd-apps
+  adopt_helm 'helm_release.kube_prometheus_stack[0]' monitoring kube-prometheus-stack
+  import_id 'kubernetes_storage_class_v1.efs[0]' efs
+fi
