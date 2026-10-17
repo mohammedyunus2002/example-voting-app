@@ -121,6 +121,13 @@ pipeline {
             set -a
             . ../tf.env
             set +a
+            if ! aws eks describe-cluster --name staging-demo >/dev/null 2>&1; then
+              echo "EKS API is already gone. Removing Kubernetes and Helm resources from state."
+              terraform state list | grep -E '^(kubernetes_|helm_release\\.)' | while read -r addr; do
+                terraform state rm "${addr}"
+              done || true
+            fi
+            terraform destroy -input=false -auto-approve || true
             bash cleanup-vpc.sh || true
             terraform destroy -input=false -auto-approve || true
             bash cleanup-vpc.sh
