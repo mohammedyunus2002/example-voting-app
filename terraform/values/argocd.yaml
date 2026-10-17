@@ -1,4 +1,16 @@
+dex:
+  enabled: false
+notifications:
+  enabled: false
+applicationSet:
+  enabled: false
+
+controller:
+  replicas: 1
+repoServer:
+  replicas: 1
 server:
+  replicas: 1
   extraArgs:
     - --insecure
   service:

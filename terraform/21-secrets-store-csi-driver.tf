@@ -6,6 +6,7 @@ resource "helm_release" "secrets_csi_driver" {
   chart      = "secrets-store-csi-driver"
   namespace  = "kube-system"
   version    = "1.4.3"
+  timeout    = 1200
 
   # MUST be set if you use ENV variables
   set = [

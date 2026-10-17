@@ -70,7 +70,10 @@ resource "helm_release" "efs_csi_driver" {
     }
   ]
 
+  timeout = 1200
+
   depends_on = [
+    aws_eks_node_group.general,
     aws_efs_mount_target.zone_a,
     aws_efs_mount_target.zone_b
   ]

@@ -7,9 +7,9 @@ resource "helm_release" "kube_prometheus_stack" {
   namespace        = "monitoring"
   create_namespace = true
   version          = "65.1.0"
-  timeout          = 900
+  timeout          = 1200
 
   values = [file("${path.module}/values/kube-prometheus-stack.yaml")]
 
-  depends_on = [aws_eks_node_group.general]
+  depends_on = [helm_release.argocd]
 }

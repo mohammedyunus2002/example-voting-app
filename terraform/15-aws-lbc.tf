@@ -44,6 +44,7 @@ resource "helm_release" "aws_lbc" {
   chart      = "aws-load-balancer-controller"
   namespace  = "kube-system"
   version    = "1.7.2"
+  timeout    = 1200
 
   set = [
     {

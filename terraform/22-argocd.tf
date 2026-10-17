@@ -7,11 +7,11 @@ resource "helm_release" "argocd" {
   namespace        = "argocd"
   create_namespace = true
   version          = "7.7.12"
-  timeout          = 600
+  timeout          = 1200
 
   values = [file("${path.module}/values/argocd.yaml")]
 
-  depends_on = [aws_eks_node_group.general]
+  depends_on = [helm_release.aws_lbc]
 }
 
 resource "helm_release" "argocd_apps" {
