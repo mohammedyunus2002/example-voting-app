@@ -3,17 +3,17 @@ replicaCount: 1
 image1:
   repository: mohammedyunus2002/result
   pullPolicy: IfNotPresent
-  tag: "12276974490"
+  tag: "39095567263"
 
 image2:
   repository: mohammedyunus2002/vote
   pullPolicy: IfNotPresent
-  tag: "12277013643"
+  tag: "39095567263"
 
 image3:
   repository: mohammedyunus2002/worker
   pullPolicy: IfNotPresent
-  tag: "12277054216"
+  tag: "39095567263"
 
 service:
   type: ClusterIP
