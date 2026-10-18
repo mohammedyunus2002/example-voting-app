@@ -31,9 +31,10 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      vote: ${{ steps.filter.outputs.vote }}
-      result: ${{ steps.filter.outputs.result }}
-      worker: ${{ steps.filter.outputs.worker }}
+      vote: ${{ steps.flags.outputs.vote }}
+      result: ${{ steps.flags.outputs.result }}
+      worker: ${{ steps.flags.outputs.worker }}
+      services: ${{ steps.flags.outputs.services }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -49,6 +50,28 @@ jobs:
             worker:
               - "worker/**"
               - ".github/workflows/ci.yaml"
+      - id: flags
+        env:
+          EVENT: ${{ github.event_name }}
+          VOTE: ${{ steps.filter.outputs.vote }}
+          RESULT: ${{ steps.filter.outputs.result }}
+          WORKER: ${{ steps.filter.outputs.worker }}
+        run: |
+          set -euo pipefail
+          vote="${VOTE}"
+          result="${RESULT}"
+          worker="${WORKER}"
+          if [ "${EVENT}" = "workflow_dispatch" ]; then
+            vote=true
+            result=true
+            worker=true
+          fi
+          {
+            echo "vote=${vote}"
+            echo "result=${result}"
+            echo "worker=${worker}"
+          } >> "${GITHUB_OUTPUT}"
+          VOTE="${vote}" RESULT="${result}" WORKER="${worker}" python3 -c 'import json,os; specs={"vote":{"service":"vote","context":"vote","file":"vote/Dockerfile","platforms":"linux/amd64,linux/arm64"},"result":{"service":"result","context":"result","file":"result/Dockerfile","platforms":"linux/amd64,linux/arm64"},"worker":{"service":"worker","context":"worker","file":"worker/Dockerfile","platforms":"linux/amd64"}}; print("services="+json.dumps([specs[name] for name in ("vote","result","worker") if os.environ[name.upper()]=="true"]))' >> "${GITHUB_OUTPUT}"
 
   test-result:
     name: Test result
@@ -73,31 +96,16 @@ jobs:
     needs: [changes, test-result]
     if: |
       always() &&
+      needs.changes.result == 'success' &&
       (needs.test-result.result == 'success' || needs.test-result.result == 'skipped') &&
-      (
-        (matrix.service == 'vote' && needs.changes.outputs.vote == 'true') ||
-        (matrix.service == 'result' && needs.changes.outputs.result == 'true') ||
-        (matrix.service == 'worker' && needs.changes.outputs.worker == 'true')
-      )
+      needs.changes.outputs.services != '[]'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - service: vote
-            context: vote
-            file: vote/Dockerfile
-            platforms: linux/amd64,linux/arm64
-          - service: result
-            context: result
-            file: result/Dockerfile
-            platforms: linux/amd64,linux/arm64
-          - service: worker
-            context: worker
-            file: worker/Dockerfile
-            platforms: linux/amd64
+        include: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v5
 
